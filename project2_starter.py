@@ -323,7 +323,34 @@ def avg_location_rating_by_room_type(data) -> dict:
     # ==============================
     # YOUR CODE STARTS HERE
     # ==============================
-    pass
+    
+    # accumulate (total_rating, count) per room type, then divide at the end.
+    # Using a regular dict means we have to check if the key exists yet each time.
+    totals = {}   # room_type -> running sum of ratings
+    counts = {}   # room_type -> number of ratings added
+ 
+    for row in data:
+        room_type = row[5]       # index 5 = room_type
+        location_rating = row[6] # index 6 = location_rating
+ 
+        # Skip listings with no rating (stored as 0.0)
+        if location_rating == 0.0:
+            continue
+ 
+        # Initialize the room type bucket if first time seeing it
+        if room_type not in totals:
+            totals[room_type] = 0.0
+            counts[room_type] = 0
+ 
+        totals[room_type] += location_rating
+        counts[room_type] += 1
+ 
+    # Compute the average for each room type and round to 1 decimal place
+    averages = {}
+    for room_type in totals:
+        averages[room_type] = round(totals[room_type] / counts[room_type], 1)
+ 
+    return averages
     # ==============================
     # YOUR CODE ENDS HERE
     # ==============================
