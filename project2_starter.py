@@ -371,7 +371,32 @@ def validate_policy_numbers(data) -> list[str]:
     # ==============================
     # YOUR CODE STARTS HERE
     # ==============================
-    pass
+    # The two valid formats are:
+    #   20##-00####STR   e.g. 2022-004088STR
+    #   STR-000####      e.g. STR-0005349
+    # '#' means any digit 0-9.
+    
+    valid_pattern = re.compile(
+        r"^20\d{2}-00\d{4}STR$"   # format 1: 20##-00####STR
+        r"|"
+        r"^STR-000\d{4}$"         # format 2: STR-000####
+    )
+ 
+    invalid_ids = []
+ 
+    for row in data:
+        listing_id = row[1]       # index 1 = listing_id
+        policy_number = row[2]    # index 2 = policy_number
+ 
+        # Skip listings explicitly marked as Pending or Exempt
+        if policy_number in ("Pending", "Exempt"):
+            continue
+ 
+        # If the policy number doesn't match either valid pattern, flag it
+        if not valid_pattern.match(policy_number):
+            invalid_ids.append(listing_id)
+ 
+    return invalid_ids
     # ==============================
     # YOUR CODE ENDS HERE
     # ==============================
@@ -391,7 +416,23 @@ def google_scholar_searcher(query):
     # ==============================
     # YOUR CODE STARTS HERE
     # ==============================
-    pass
+    
+    # Build the Google Scholar search URL with the query encoded for a URL
+    url = f"https://scholar.google.com/scholar?q={query.replace(' ', '+')}"
+ 
+    # Send an HTTP GET request pretending to be a browser (some sites block plain requests)
+    headers = {"User-Agent": "Mozilla/5.0"}
+    response = requests.get(url, headers=headers)
+ 
+    soup = BeautifulSoup(response.text, "html.parser")
+ 
+    # Each result title is inside an <h3> with class "gs_rt"
+    titles = []
+    for h3 in soup.find_all("h3", class_="gs_rt"):
+        # The <h3> may contain nested <a> or <span> tags; get_text() strips them all
+        titles.append(h3.get_text(strip=True))
+ 
+    return titles
     # ==============================
     # YOUR CODE ENDS HERE
     # ==============================
