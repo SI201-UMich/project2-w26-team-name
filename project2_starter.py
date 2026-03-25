@@ -4,11 +4,11 @@
 # Your email: mtakkar@umich.edu
 # Who or what you worked with on this homework (including generative AI like ChatGPT):
 # If you worked with generative AI also add a statement for how you used it.
-# e.g.:
-# Asked ChatGPT for hints on debugging and for suggestions on overall code structure
+# I used claude to help me when I was debugging. I also needed help with creating lambdas.
 #
 # Did your use of GenAI on this assignment align with your goals and guidelines in your Gen AI contract? If not, why?
-#
+#Yes I did not use it as a clutch but to enhance my learning. 
+
 # --- ARGUMENTS & EXPECTED RETURN VALUES PROVIDED --- #
 # --- SEE INSTRUCTIONS FOR FULL DETAILS ON METHOD IMPLEMENTATION --- #
 
@@ -41,7 +41,46 @@ def load_listing_results(html_path) -> list[tuple]:
     # ==============================
     # YOUR CODE STARTS HERE
     # ==============================
-    pass
+    # Open and parse the search results HTML file
+    with open(html_path, encoding="utf-8-sig") as f:
+        soup = BeautifulSoup(f, "html.parser")
+ 
+    results = []
+    seen_ids = set()  # track IDs we've already added so we don't duplicate
+ 
+    # Every listing on the search page has an <a> tag whose href contains /rooms/ or /rooms/plus/
+    # We find all such links, then extract the numeric ID from the URL
+    for link in soup.find_all("a", href=re.compile(r"/rooms/")):
+        href = link.get("href", "")
+ 
+        # The URL looks like /rooms/1944564?... or /rooms/plus/16204265?...
+        # This regex captures the numeric ID in either case
+        match = re.search(r"/rooms/(?:plus/)?(\d+)", href)
+        if not match:
+            continue
+ 
+        listing_id = match.group(1)
+ 
+        # Skip if we've already seen this ID (each listing appears in multiple <a> tags)
+        if listing_id in seen_ids:
+            continue
+        seen_ids.add(listing_id)
+ 
+        # The title lives in a tag whose id starts with "title_" inside the same card.
+        # Walk up the DOM until we find a parent that contains a title_ element.
+        title = None
+        parent = link.find_parent("div")
+        while parent:
+            title_tag = parent.find(id=re.compile(r"^title_"))
+            if title_tag:
+                title = title_tag.get_text(strip=True)
+                break
+            parent = parent.find_parent("div")
+ 
+        if title:  # only add if we successfully found a title
+            results.append((title, listing_id))
+ 
+    return results
     # ==============================
     # YOUR CODE ENDS HERE
     # ==============================
@@ -70,7 +109,109 @@ def get_listing_details(listing_id) -> dict:
     # ==============================
     # YOUR CODE STARTS HERE
     # ==============================
-    pass
+    
+    # Build the path to the individual listing file.
+    # The html_files folder sits next to this script.
+    base_dir = os.path.abspath(os.path.dirname(__file__))
+    file_path = os.path.join(base_dir, "html_files", f"listing_{listing_id}.html")
+ 
+    with open(file_path, encoding="utf-8-sig") as f:
+        soup = BeautifulSoup(f, "html.parser")
+ 
+ 
+    # POLICY NUMBER 
+    # The page has a <li> that literally starts with "Policy number: "
+    # followed by a <span> containing the actual value.
+    policy_number = "Exempt"  # default if nothing is found
+ 
+    policy_tag = soup.find(string=lambda t: t and "Policy number" in t)
+    if policy_tag:
+        # The span immediately inside the same <li> holds the raw value
+        span = policy_tag.parent.find("span")
+        if span:
+            raw = span.get_text(strip=True)
+ 
+            # Normalize to the three allowed categories.
+            # Some hosts type "pending" (lowercase), so we compare case-insensitively.
+            if raw.lower() == "pending":
+                policy_number = "Pending"
+            elif raw.lower() == "exempt":
+                policy_number = "Exempt"
+            else:
+                # Strip any hidden BOM/whitespace characters that sneak in
+                policy_number = raw.strip()
+ 
+    # HOST TYPE 
+    # If the word "Superhost" appears anywhere on the page the host is a Superhost.
+    # We check for a <span> that contains exactly "Superhost".
+    superhost_tag = soup.find(string=lambda t: t and t.strip() == "Superhost")
+    host_type = "Superhost" if superhost_tag else "regular"
+ 
+    # HOST NAME
+    # The heading "Hosted by <Name>" always appears in an <h2> tag.
+    host_name = ""
+    hosted_tag = soup.find("h2", string=lambda t: t and "Hosted by" in t)
+    if hosted_tag:
+        # Remove "Hosted by " prefix to get just the name(s)
+        host_name = hosted_tag.get_text(strip=True).replace("Hosted by ", "").strip()
+    else:
+        # Fallback: some pages put the text in a different tag
+        for tag in soup.find_all(string=lambda t: t and "Hosted by" in str(t) and "{" not in str(t)):
+            text = tag.strip()
+            if "Hosted by" in text and len(text) < 100:
+                host_name = text.replace("Hosted by", "").strip()
+                break
+            
+            
+    # ROOM TYPE
+    # The subtitle of the listing (e.g. "Entire loft hosted by Brian" or
+    # "Private room in home hosted by John") tells us the room type.
+    # We classify based on whether "Private" or "Shared" appears in that subtitle.
+    room_type = "Entire Room"  # default
+ 
+    for tag in soup.find_all(string=lambda t: t and (
+        "Entire" in str(t) or "Private" in str(t) or "Shared" in str(t)
+    )):
+        s = str(tag).strip()
+        # Only look at short subtitle-like strings (not long review text)
+        if len(s) < 150:
+            if "Private" in s:
+                room_type = "Private Room"
+            elif "Shared" in s:
+                room_type = "Shared Room"
+            else:
+                room_type = "Entire Room"
+            break  # first match is the subtitle; stop here
+ 
+    # LOCATION RATING
+    # Ratings are displayed in a section where "Location" label sits in a div,
+    # and the numeric score sits in the very next sibling div inside a <span
+    # aria-hidden="true">.
+    location_rating = 0.0  # default when no rating exists
+ 
+    for tag in soup.find_all(string=lambda t: t and t.strip() == "Location"):
+        parent = tag.parent
+        next_sib = parent.find_next_sibling()
+        if next_sib:
+            # The score number is in a <span aria-hidden="true"> e.g. "4.9"
+            score_span = next_sib.find("span", {"aria-hidden": "true"})
+            if score_span:
+                try:
+                    location_rating = float(score_span.get_text(strip=True))
+                    break  # found it, no need to keep looking
+                except ValueError:
+                    pass  # not a number, keep searching
+ 
+    # Build and return the nested dictionary the instructions require
+    return {
+        listing_id: {
+            "policy_number": policy_number,
+            "host_type": host_type,
+            "host_name": host_name,
+            "room_type": room_type,
+            "location_rating": location_rating,
+        }
+    }
     # ==============================
     # YOUR CODE ENDS HERE
     # ==============================
