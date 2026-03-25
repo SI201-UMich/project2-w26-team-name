@@ -232,7 +232,31 @@ def create_listing_database(html_path) -> list[tuple]:
     # ==============================
     # YOUR CODE STARTS HERE
     # ==============================
-    pass
+    # get the (title, id) pairs from the search results page
+    listings = load_listing_results(html_path)
+ 
+    database = []
+ 
+    for listing_title, listing_id in listings:
+        # get the detailed info dict for this listing
+        details_dict = get_listing_details(listing_id)
+ 
+        # details_dict looks like: { "1944564": { "policy_number": ..., ... } }
+        details = details_dict[listing_id]
+ 
+        # pack everything in single flat tuple in the required order
+        row = (
+            listing_title,
+            listing_id,
+            details["policy_number"],
+            details["host_type"],
+            details["host_name"],
+            details["room_type"],
+            details["location_rating"],
+        )
+        database.append(row)
+ 
+    return database
     # ==============================
     # YOUR CODE ENDS HERE
     # ==============================
