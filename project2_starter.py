@@ -488,11 +488,30 @@ class TestCases(unittest.TestCase):
 
     def test_output_csv(self):
         out_path = os.path.join(self.base_dir, "test.csv")
-
-        # TODO: Call output_csv() to write the detailed_data to a CSV file.
-        # TODO: Read the CSV back in and store rows in a list.
-        # TODO: Check that the first data row matches ["Guesthouse in San Francisco", "49591060", "STR-0000253", "Superhost", "Ingrid", "Entire Room", "5.0"].
-
+ 
+        # Write the CSV
+        output_csv(self.detailed_data, out_path)
+ 
+        # Read it back in
+        rows = []
+        with open(out_path, encoding="utf-8-sig") as f:
+            reader = csv.reader(f)
+            next(reader)  # skip the header row
+            for row in reader:
+                rows.append(row)
+ 
+        # The first DATA row (highest location_rating) should be Ingrid's guesthouse at 5.0
+        expected_first = [
+            "Guesthouse in San Francisco",
+            "49591060",
+            "STR-0000253",
+            "Superhost",
+            "Ingrid",
+            "Entire Room",
+            "5.0",
+        ]
+        self.assertEqual(rows[0], expected_first)
+ 
         os.remove(out_path)
 
     def test_avg_location_rating_by_room_type(self):
