@@ -279,7 +279,28 @@ def output_csv(data, filename) -> None:
     # ==============================
     # YOUR CODE STARTS HERE
     # ==============================
-    pass
+    
+    # Sort a copy of data by location_rating (index 6) from highest to lowest.
+    # We use a copy so we don't modify the original list passed in.
+    sorted_data = sorted(data, key=lambda row: row[6], reverse=True)
+ 
+    with open(filename, "w", newline="", encoding="utf-8-sig") as csv_file:
+        writer = csv.writer(csv_file)
+ 
+        # Write the header row first
+        writer.writerow([
+            "Listing Title",
+            "Listing ID",
+            "Policy Number",
+            "Host Type",
+            "Host Name",
+            "Room Type",
+            "Location Rating",
+        ])
+ 
+        # Write each listing as its own row
+        for row in sorted_data:
+            writer.writerow(row)
     # ==============================
     # YOUR CODE ENDS HERE
     # ==============================
